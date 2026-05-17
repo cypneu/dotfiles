@@ -312,8 +312,10 @@ do
   vim.cmd.colorscheme 'tokyonight-night'
 
   -- Highlight todo, notes, etc in comments
+  vim.pack.add { gh 'nvim-lua/plenary.nvim' }
   vim.pack.add { gh 'folke/todo-comments.nvim' }
   require('todo-comments').setup { signs = false }
+  vim.keymap.set('n', '<leader>st', function() Snacks.picker.todo_comments() end, { desc = '[S]earch [T]odos' })
 
   -- [[ mini.nvim ]]
   --  A collection of various small independent plugins/modules
@@ -341,6 +343,8 @@ do
   -- - sr)'  - [S]urround [R]eplace [)] [']
   require('mini.surround').setup()
 
+  require('mini.pairs').setup()
+
   -- Set up the icons module
   require('mini.icons').setup()
 
@@ -365,6 +369,9 @@ do
 
   -- See `:help snacks.picker`
   require('snacks').setup {
+    profiler = {
+      enabled = true,
+    },
     picker = {
       enabled = true,
       -- You can configure default layout, theme, etc here if you want
@@ -377,7 +384,21 @@ do
       enabled = true,
       margin = { top = 1 },
     },
+    image = {
+      enabled = true,
+    },
+    indent = {
+      enabled = true,
+    },
   }
+
+  -- [[ Snacks Profiler Mappings ]]
+  -- Toggle the profiler recording session
+  Snacks.toggle.profiler():map '<leader>pp'
+  -- Toggle visual inline execution highlights in the active buffer
+  Snacks.toggle.profiler_highlights():map '<leader>ph'
+  -- Open a dedicated scratch buffer to play with profile filters
+  vim.keymap.set('n', '<leader>ps', function() Snacks.profiler.scratch() end, { desc = 'Profiler [S]cratch Buffer' })
 
   -- Toggle the file explorer
   vim.keymap.set('n', '<leader>e', function() Snacks.explorer() end, { desc = 'File [E]xplorer' })
@@ -756,7 +777,7 @@ do
     -- the rust implementation via `'prefer_rust_with_warning'`
     --
     -- See `:help blink-cmp-config-fuzzy` for more information
-    fuzzy = { implementation = 'lua' },
+    fuzzy = { implementation = 'prefer_rust_with_warning' },
 
     -- Shows a signature help window while you type arguments for a function
     signature = { enabled = true },
@@ -862,10 +883,8 @@ do
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
   -- require 'kickstart.plugins.debug'
-  -- require 'kickstart.plugins.indent_line'
-  -- require 'kickstart.plugins.lint'
-  -- require 'kickstart.plugins.autopairs'
-  -- require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
+  require 'kickstart.plugins.lint'
+  require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
 
   -- NOTE: You can add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   require 'custom.plugins'
