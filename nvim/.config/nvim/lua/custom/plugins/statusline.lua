@@ -84,6 +84,3 @@ require('lualine').setup {
     },
   },
 }
-
--- Restore the correct core window state after loading completes
-vim.o.laststatus = vim.g.lualine_laststatus
