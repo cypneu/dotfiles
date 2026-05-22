@@ -3,6 +3,13 @@
 -- Core Neovim settings, leaders, options, basic keymaps, basic autocmds
 -- ============================================================
 do
+  -- Helper function to detect if we are inside a Google workspace
+  _G.is_google3 = function()
+    local cwd = vim.fn.getcwd()
+    -- Matches standard CitC workspace paths
+    return cwd:match '^/google/src/cloud/' ~= nil
+  end
+
   -- Enable faster startup by caching compiled Lua modules
   vim.loader.enable()
 
@@ -32,12 +39,21 @@ do
   -- Don't show the mode, since it's already in the status line
   vim.o.showmode = false
 
-  -- Sync clipboard between OS and Neovim.
-  --  Schedule the setting after `UiEnter` because it can increase startup-time.
-  --  Remove this option if you want your OS clipboard to remain independent.
-  --  See `:help 'clipboard'`
-  vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
-
+  -- Sync clipboard between OS and Neovim over SSH using OSC 52
+  vim.schedule(function()
+    vim.o.clipboard = 'unnamedplus'
+    vim.g.clipboard = {
+      name = 'OSC 52',
+      copy = {
+        ['+'] = require('vim.ui.clipboard.osc52').copy '+',
+        ['*'] = require('vim.ui.clipboard.osc52').copy '*',
+      },
+      paste = {
+        ['+'] = require('vim.ui.clipboard.osc52').paste '+',
+        ['*'] = require('vim.ui.clipboard.osc52').paste '*',
+      },
+    }
+  end)
   -- Enable break indent
   vim.o.breakindent = true
 
@@ -374,7 +390,6 @@ do
     },
     picker = {
       enabled = true,
-      -- You can configure default layout, theme, etc here if you want
     },
     explorer = {
       enabled = true,
@@ -623,26 +638,71 @@ do
     gh 'WhoIsSethDaniel/mason-tool-installer.nvim',
   }
 
-  -- Automatically install LSPs and related tools to stdpath for Neovim
-  require('mason').setup {}
+  if _G.is_google3() then
+    -- 1. Configure CiderLSP for Google3
+    local ciderlsp_settings = {
+      'enable_placeholders',
+      'enable:inlay_hints_kotlin_show_local_variable_types',
+    }
 
-  -- Ensure the servers and tools above are installed
-  --
-  -- To check the current status of installed tools and/or manually install
-  -- other tools, you can run
-  --    :Mason
-  --
-  -- You can press `g?` for help in this menu.
-  local ensure_installed = vim.tbl_keys(servers or {})
-  vim.list_extend(ensure_installed, {
-    -- You can add other tools here that you want Mason to install
-  })
+    vim.lsp.config['ciderlsp'] = {
+      cmd = {
+        '/google/bin/releases/cider/ciderlsp/ciderlsp',
+        '--tooltag=nvim-lsp',
+        '--noforward_sync_responses',
+        '--request_options=' .. table.concat(ciderlsp_settings, ','),
+      },
+      filetypes = {
+        'borg',
+        'bzl',
+        'c',
+        'cpp',
+        'cs',
+        'dart',
+        'gcl',
+        'go',
+        'googlesql',
+        'graphql',
+        'java',
+        'kotlin',
+        'markdown',
+        'mlir',
+        'ncl',
+        'objc',
+        'patchpanel',
+        'proto',
+        'python',
+        'qflow',
+        'soy',
+        'swift',
+        'textpb',
+        'typescript',
+      },
+      root_dir = 'google3/src/cloud',
+    }
+    vim.lsp.enable 'ciderlsp'
+  else
+    -- Automatically install LSPs and related tools to stdpath for Neovim
+    require('mason').setup {}
 
-  require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+    -- Ensure the servers and tools above are installed
+    --
+    -- To check the current status of installed tools and/or manually install
+    -- other tools, you can run
+    --    :Mason
+    --
+    -- You can press `g?` for help in this menu.
+    local ensure_installed = vim.tbl_keys(servers or {})
+    vim.list_extend(ensure_installed, {
+      -- You can add other tools here that you want Mason to install
+    })
 
-  for name, server in pairs(servers) do
-    vim.lsp.config(name, server)
-    vim.lsp.enable(name)
+    require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+
+    for name, server in pairs(servers) do
+      vim.lsp.config(name, server)
+      vim.lsp.enable(name)
+    end
   end
 end
 
@@ -653,51 +713,60 @@ end
 do
   -- [[ Formatting ]]
   vim.pack.add { gh 'stevearc/conform.nvim' }
-  require('conform').setup {
-    notify_on_error = false,
-    format_on_save = function(bufnr)
-      -- You can specify filetypes to autoformat on save here:
-      local enabled_filetypes = {
-        lua = true,
-        python = true,
-        cpp = true,
-        rust = true,
-        zig = true,
-        javascript = true,
-        typescript = true,
-        javascriptreact = true,
-        typescriptreact = true,
-        css = true,
-        json = true,
-        html = true,
-      }
-      if enabled_filetypes[vim.bo[bufnr].filetype] then
-        return { timeout_ms = 500 }
-      else
-        return nil
-      end
-    end,
-    default_format_opts = {
-      lsp_format = 'fallback', -- Use external formatters if configured below, otherwise use LSP formatting. Set to `false` to disable LSP formatting entirely.
-    },
-    -- You can also specify external formatters in here.
-    formatters_by_ft = {
-      -- rust = { 'rustfmt' },
-      -- Conform can also run multiple formatters sequentially
-      python = { 'ruff_organize_imports', 'ruff_format' },
 
-      javascript = { 'prettier' },
-      typescript = { 'prettier' },
-      javascriptreact = { 'prettier' },
-      typescriptreact = { 'prettier' },
-      css = { 'prettier' },
-      json = { 'prettier' },
-      html = { 'prettier' },
-
-      -- You can use 'stop_after_first' to run the first available formatter from the list
-      -- javascript = { "prettierd", "prettier", stop_after_first = true },
-    },
-  }
+  if _G.is_google3() then
+    -- Google3 specific conform setup
+    require('conform').setup {
+      notify_on_error = false,
+      -- IMPORTANT: We disable format_on_save in google3 because CiderLSP formatting
+      -- can sometimes take a few seconds on massive files. If we format on save
+      -- synchronously, it will freeze your editor while it waits.
+      format_on_save = nil,
+      default_format_opts = {
+        lsp_format = 'fallback', -- This routes the format request directly to CiderLSP
+      },
+      formatters_by_ft = {}, -- Leave empty so it never tries to run external tools
+    }
+  else
+    -- Your personal projects conform setup
+    require('conform').setup {
+      notify_on_error = false,
+      format_on_save = function(bufnr)
+        local enabled_filetypes = {
+          lua = true,
+          python = true,
+          cpp = true,
+          rust = true,
+          zig = true,
+          javascript = true,
+          typescript = true,
+          javascriptreact = true,
+          typescriptreact = true,
+          css = true,
+          json = true,
+          html = true,
+        }
+        if enabled_filetypes[vim.bo[bufnr].filetype] then
+          return { timeout_ms = 500 }
+        else
+          return nil
+        end
+      end,
+      default_format_opts = {
+        lsp_format = 'fallback',
+      },
+      formatters_by_ft = {
+        python = { 'ruff_organize_imports', 'ruff_format' },
+        javascript = { 'prettier' },
+        typescript = { 'prettier' },
+        javascriptreact = { 'prettier' },
+        typescriptreact = { 'prettier' },
+        css = { 'prettier' },
+        json = { 'prettier' },
+        html = { 'prettier' },
+      },
+    }
+  end
 
   vim.keymap.set({ 'n', 'v' }, '<leader>f', function() require('conform').format { async = true } end, { desc = '[F]ormat buffer' })
 end
@@ -820,6 +889,7 @@ do
     'tsx',
     'proto',
     'regex',
+    'starlark',
   }
   require('nvim-treesitter').install(parsers)
 

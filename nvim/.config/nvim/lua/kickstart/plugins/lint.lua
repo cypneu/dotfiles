@@ -1,4 +1,5 @@
 -- Linting
+if _G.is_google3() then return end
 
 vim.pack.add { 'https://github.com/mfussenegger/nvim-lint' }
 
