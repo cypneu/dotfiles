@@ -34,8 +34,18 @@ require('lualine').setup {
           hint = ' ',
         },
       },
-      { 'filetype', icon_only = true, separator = '', padding = { left = 1, right = 0 } },
-      { 'filename', path = 1 }, -- Displays the relative file path
+      {
+        'filetype',
+        icon_only = true,
+        separator = '',
+        padding = { left = 1, right = 0 },
+        cond = function() return not string.match(vim.bo.filetype, 'snacks_picker') end,
+      },
+      {
+        'filename',
+        path = 1,
+        cond = function() return not string.match(vim.bo.filetype, 'snacks_picker') end,
+      },
     },
 
     lualine_x = {
