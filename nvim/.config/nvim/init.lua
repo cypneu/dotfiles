@@ -54,6 +54,7 @@ do
       },
     }
   end)
+
   -- Enable break indent
   vim.o.breakindent = true
 
@@ -305,6 +306,8 @@ do
       { '<leader>t', group = '[T]oggle' },
       { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } }, -- Enable gitsigns recommended keymaps first
       { 'gr', group = 'LSP Actions', mode = { 'n' } },
+      { '<leader>c', group = '[C]odeSearch / [C]ritique', mode = { 'n', 'v' } },
+      { '<leader>b', group = '[B]laze' },
     },
   }
 
@@ -539,7 +542,14 @@ do
       --
       -- When you move your cursor, the highlights will be cleared (the second autocommand).
       local client = vim.lsp.get_client_by_id(event.data.client_id)
-      if client and client:supports_method('textDocument/documentHighlight', event.buf) then
+      local filetype = vim.bo[event.buf].filetype
+      local highlight_unsupported = {
+        bzl = true,
+        build = true,
+        proto = true,
+        markdown = true,
+      }
+      if client and client:supports_method('textDocument/documentHighlight', event.buf) and not highlight_unsupported[filetype] then
         local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
         vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
           buffer = event.buf,
@@ -678,7 +688,7 @@ do
         'textpb',
         'typescript',
       },
-      root_dir = 'google3/src/cloud',
+      root_dir = '/google/src/cloud',
     }
     vim.lsp.enable 'ciderlsp'
   else
